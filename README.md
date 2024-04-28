@@ -1,4 +1,6 @@
 # R_Analysis
+
+Leveraging R this time around for a masters project to identify opportunities of growth for a grocey chain.
 #### Problem Statement:
 
 Rather than targeting all households or Demographics for all campaigns and promotions, can we identify specific demographics that would make our campaigns cost efficient and produce high returns?
