@@ -1,0 +1,506 @@
+---
+output:
+  html_document: default
+  word_document: default
+---
+
+<center> <h1>Regork Grocery Chain Analysis</h1> </center>
+<center> <h2>Group 13</h2> </center>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+## Analysis {.tabset}
+
+### Introduction
+
+#### Problem Statement:
+
+Rather than targeting all households or Demographics for all campaigns and promotions, can we identify specific demographics that would make our campaigns cost efficient and produce high returns?
+
+#### Approach/Implementation:
+
+To achieve the above, We identified 3 areas of opportunities : 
+
+1. Analysis on the difference in sales for Total items as a whole and discounted items on various demographic groups to see which demographics are highly sensitive to promotions as a whole.
+2. Analysed Time constrained sales on a month to month basis to see which demographics are not following the larger trend to help compound the same with targeted campaigns. 
+3. Identified which demographics least contribute to the largest sold products to check the source of the issue. 
+
+And as a larger measure, we also looked into which campaigns were the most successful in the past.
+
+#### Proposed Solution:
+
+From the 3 opportunities we've looked at, we suggest:
+
+1) Targeting income ranges like 100-124k or families with 1 kids for discounted product sales and to increase awareness among higher income groups like 150+k in general since their average sales, although on the higher end, their total sales have been lacking.
+
+2) Demographics like 19-24 age group, 200-249k income group etc have decreasing sales over time as opposed to the larger trend and need to be compounded with marketing ventures. 
+
+3) A lot of demographic specific products can be brought in to compound for the lack of sales in what should be our highest spending demographics. 
+
+### Required Packages
+
+The Following packages were used to do the analysis.
+
+a. completejourney: Retail shopping transactions for 2,469 households over one year.
+b. tidyverse: The tidyverse is an opinionated collection of R packages designed for data science. Used for tidying data
+c. lubridate: Lubridate provides tools that make it easier to parse and manipulate dates. 
+
+```{r, message = FALSE}
+# Loading required libraries
+library(completejourney)
+library(tidyverse)
+library(lubridate)
+```
+
+### Data Preparation
+
+The data sets required for this project are present in the completejourney package. get_transactions() and get_promotions() are used to load the full transactions and promotions data.
+
+```{r}
+# Loading the data from completejourney
+transactions <- get_transactions()
+promotions <- get_promotions()
+```
+
+
+Since each demographics has representation that varies in number, calculating the total sales to compare each demographics would not work in this case. So average sales for each demographic was looked at in our Analysis. 
+
+And we've calculated factors for each demographics, which will be used to calculate the respective Average sales. 
+
+And since our focus was on Demographics, we will only be looking at transactions for which we have the demographics data. 
+
+```{r}
+# calculating demographic factors
+demographics_income <- demographics %>% 
+  group_by(income) %>% 
+  tally() %>% 
+  mutate(income_factor = 1/n)
+
+demographics_age <- demographics %>% 
+  group_by(age) %>% 
+  tally() %>% 
+  mutate(age_factor = 1/n)
+
+demographics_kidscount <- demographics %>% 
+  group_by(kids_count) %>% 
+  tally() %>% 
+  mutate(kids_count_factor = 1/n)
+
+demographics_householdsize <- demographics %>% 
+  group_by(household_size) %>% 
+  tally() %>% 
+  mutate(household_size_factor = 1/n)
+
+demographics_maritalstatus <- demographics %>% 
+  group_by(marital_status) %>% 
+  tally() %>% 
+  mutate(marital_status_factor = 1/n)
+
+households_per_campaign <-
+  campaigns %>% 
+  group_by(campaign_id) %>% 
+  tally() %>%
+  mutate(households_per_campaign_factor = 1 / n)
+```
+
+
+### Exploratory Data Analysis {.tabset .tabset-fade .tabset-pills}
+
+#### Analysis 1
+
+For this analysis, we are focusing on identifying demographics with a high sensitivity to campaigns or promotions for any discounted products. 
+To accomplish this, we analysed the total sales for Regork as two parts:
+a)The first being total sales with respect to all of the different factors in demographics. 
+b)The second was sales for only discounted items (all discounts like retail, coupon, coupon_match were considered for this analysis)
+
+While looking at these trends with respect to all the different factors, we noted some interesting insights, and only those were presented here to keep it concise. 
+
+The general idea is that if the trend with demographics is different from total sales to discounted items sales,we can identify certain demographics whose sales are being affected because of the discounts placed on items. 
+
+##### By income range
+
+```{r, message = FALSE}
+transactions %>%
+  filter(retail_disc > 0 | coupon_disc > 0 | coupon_match_disc > 0) %>%
+  inner_join(demographics, by = 'household_id') %>%
+  group_by(income) %>%
+  summarise(totalsales = sum(sales_value)) %>%
+  inner_join(demographics_income) %>%
+  mutate(avgsales = totalsales * income_factor) %>%
+  select(income, totalsales, avgsales) %>%
+  arrange(desc(avgsales)) %>%
+  ggplot(aes(x = reorder(income,-avgsales), y = avgsales)) +
+  geom_bar(stat = "identity", fill = "orange") +
+  scale_y_continuous(label = scales::dollar) +
+  geom_text(aes(label = round(totalsales)), vjust = -0.5, colour = "black") +
+  labs(
+    title = "Discounted item sales by demographics income",
+    subtitle = "Sales for discounted items based on their income range",
+    x = "Income Range of Households",
+    y = "Average sales in $"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+```{r, message = FALSE}
+transactions %>%
+  inner_join(demographics, by = 'household_id') %>%
+  group_by(income) %>%
+  summarise(totalsales = sum(sales_value)) %>% inner_join(demographics_income) %>%
+  mutate(avgsales = totalsales * income_factor) %>%
+  select(income, totalsales, avgsales) %>%
+  arrange(desc(avgsales)) %>%
+  ggplot(aes(x = reorder(income,-avgsales), y = avgsales)) +
+  geom_bar(stat = "identity", fill = "lightgreen") +
+  scale_y_continuous(label = scales::dollar) +
+  geom_text(aes(label = round(totalsales)), vjust = -0.5, colour = "black") +
+  labs(
+    title = "Toal sales as per demographics - income",
+    subtitle = "Sales of items based on their income range",
+    x = "Income Range of Households",
+    y = "Average sales in $"
+  ) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+When comparing this trend in income groups, we seem to be seeing a lot of jumps in positions between different groups. This was the most change compared to the rest of the demographics. The 250+ although having the highest average sales in general, have little total sales and drop a position when looking at discounted items. This could be due to the high income in general, but there are various other income ranges that can be seen as sensitive to discounted items. 
+
+##### By household size
+
+```{r, message = FALSE}
+transactions %>%
+  filter(retail_disc > 0 | coupon_disc > 0 | coupon_match_disc > 0) %>%
+  inner_join(demographics, by = 'household_id') %>%
+  group_by(household_size) %>%
+  summarise(totalsales = sum(sales_value)) %>%
+  inner_join(demographics_householdsize) %>%
+  mutate(avgsales = totalsales * household_size_factor) %>%
+  select(household_size, totalsales, avgsales) %>%
+  arrange(desc(avgsales))
+```
+
+```{r, message = FALSE}
+transactions %>%
+  inner_join(demographics, by = 'household_id') %>%
+  group_by(household_size) %>%
+  summarise(totalsales = sum(sales_value)) %>%
+  inner_join(demographics_householdsize) %>%
+  mutate(avgsales = totalsales * household_size_factor) %>%
+  select(household_size, totalsales, avgsales) %>%
+  arrange(desc(avgsales))
+```
+
+The average sales for the 5 and more household size is less compared to the households with 4 people. 
+
+##### By Kids count
+
+```{r, message = FALSE}
+transactions %>%
+  filter(retail_disc > 0 | coupon_disc > 0 | coupon_match_disc > 0) %>%
+  inner_join(demographics, by = 'household_id') %>%
+  group_by(kids_count) %>%
+  summarise(totalsales = sum(sales_value)) %>% inner_join(demographics_kidscount) %>%
+  mutate(avgsales = totalsales * kids_count_factor) %>%
+  select(kids_count, totalsales, avgsales) %>%
+  arrange(desc(avgsales)) %>%
+  ggplot(aes(x = reorder(kids_count,-avgsales), y = avgsales)) +
+  geom_bar(stat = "identity", fill = "orange") +
+  scale_y_continuous(label = scales::dollar) +
+  geom_text(aes(label = round(totalsales)), vjust = -0.5, colour = "black") +
+  labs(
+    title = "Discounted item sales by demographic kids_count",
+    subtitle = "Sales of discounted items based on Kids in every household",
+    x = "Kids_count of Households",
+    y = "Average sales in $"
+  )
+```
+
+```{r, message = FALSE}
+transactions %>%
+  inner_join(demographics, by = 'household_id') %>%
+  group_by(kids_count) %>%
+  summarise(totalsales = sum(sales_value)) %>% inner_join(demographics_kidscount) %>%
+  mutate(avgsales = totalsales * kids_count_factor) %>%
+  select(kids_count, totalsales, avgsales) %>%
+  arrange(desc(avgsales)) %>%
+  ggplot(aes(x = kids_count , y = avgsales)) +
+  geom_bar(stat = "identity", fill = "lightgreen") +
+  scale_y_continuous(label = scales::dollar) +
+  geom_text(aes(label = round(totalsales)), vjust = -0.5, colour = "black") +
+  labs(
+    title = "Total sales as per demographic kids_count",
+    subtitle = "Sales of items based on Kids in every household",
+    x = "Kids_count of Households",
+    y = "Average sales in $"
+  )
+```
+
+Similarly, when comparing the average sales of households with different numbers of children, people with 3+ kids purchase fewer items than those with 2 kids. When we compare the two graphs, we can see that people with one kid buy more items with any discount. 
+
+Overall, we need to invest more money on campaigns to attract households with 200-249K income range, 5+ household size and households with 3+ kids. Also households with 100-124K income range and with one kid are buying more products with any kind of discount. 
+
+#### Analysis 2
+
+For this analysis, monthly sales from overall transaction data is plotted and compared with the monthly sales by different demographic groups.
+
+Since the overall trend for sales is an upward graph with month to month overall sales increasing, we checked to see which demographics don't follow the larger trend to see if they can be compounded with targeted campaigns.
+
+
+```{r, message = FALSE}
+transactions %>% 
+  mutate(Month = month(transaction_timestamp)) %>%
+  group_by(Month) %>% 
+  summarise(monthlysales = sum(sales_value))  %>%
+  ggplot(aes(Month, monthlysales)) + 
+  geom_path() +
+  geom_point(size = 2) + 
+  geom_text(aes(label = monthlysales), vjust = -1, colour = "black") +
+  scale_x_continuous(breaks = 1:12, minor_breaks = NULL, labels = month.name[1:12]) +
+  scale_y_continuous(label = scales::dollar) +
+  labs(
+    title = "Month wise transactions of customers",
+    subtitle = "Customer spending range over months in year 2017",
+    x = "Months of transaction",
+    y = "Monthly sales in $"
+  ) 
+```
+
+overall transaction data is increasing month to month.
+
+##### Monthly average sales per age
+
+```{r, message = FALSE}
+transactions %>% inner_join(demographics, by = 'household_id') %>%
+  mutate(Monthoftrans = month(transaction_timestamp)) %>%
+  group_by(age, Monthoftrans) %>%
+  summarise(Monthly_sales_asperage = sum(sales_value)) %>%
+  inner_join(demographics_age) %>%
+  mutate(avgmonthlysales = Monthly_sales_asperage * age_factor) %>%
+  ggplot(aes(Monthoftrans, avgmonthlysales)) +
+  facet_wrap( ~ age) + 
+  geom_path(linetype = "dashed", color = "RED", size = 1) + 
+  geom_point(color = "blue", size = 1) +
+  scale_x_continuous(breaks = 1:12, minor_breaks = NULL, labels = month.name[1:12]) +
+  scale_y_continuous(label = scales::dollar) +
+  labs(
+    title = "Age group wise monthly transactions over time",
+    subtitle = "Average montly transations of different age groups over period of time",
+    x = "Month of transaction",
+    y = "Average monthly sales in $"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+From the plot, we can observe that the average spending of 19-24 age group is decreasing over time when compared to the overall monthly sales.
+
+##### Monthly average sales per income
+
+```{r, message = FALSE}
+transactions %>% inner_join(demographics, by = 'household_id') %>%
+  mutate(Monthoftrans = month(transaction_timestamp)) %>%
+  group_by(income, Monthoftrans) %>%
+  summarise(Monthly_sales_asperincome = sum(sales_value)) %>%
+  inner_join(demographics_income) %>%
+  mutate(avgmonthlysales = Monthly_sales_asperincome * income_factor) %>%
+  ggplot(aes(Monthoftrans, avgmonthlysales)) + 
+  facet_wrap( ~ income) + geom_path(linetype = "dashed", color = "RED", size = 1) +
+  geom_point(color = "blue", size = 1) +
+  scale_x_continuous(breaks = 1:12, minor_breaks = NULL, labels = month.name[1:12]) +
+  scale_y_continuous(label = scales::dollar) +
+  labs(
+    title = "Income range wise monthly transactions over time",
+    subtitle = "Average montly transations of different income ranges over period of time",
+    x = "Month of transaction",
+    y = "Average monthly sales in $"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+A lot of income groups are flat and decreasing over time.
+
+##### Monthly average sales per kids_count
+
+```{r, message = FALSE}
+transactions %>% inner_join(demographics, by = 'household_id') %>%
+  mutate(Monthoftrans = month(transaction_timestamp)) %>%
+  group_by(kids_count, Monthoftrans) %>%
+  summarise(Monthly_sales_asperkids = sum(sales_value)) %>%
+  inner_join(demographics_kidscount) %>%
+  mutate(avgmonthlysales = Monthly_sales_asperkids * kids_count_factor) %>%
+  ggplot(aes(Monthoftrans, avgmonthlysales)) + 
+  facet_wrap( ~ kids_count) +
+  geom_path(linetype = "dashed", color = "RED", size = 1) +
+  geom_point(color = "blue", size = 1) +
+  scale_x_continuous(breaks = 1:12, minor_breaks = NULL, labels = month.name[1:12]) +
+  scale_y_continuous(label = scales::dollar) +
+  labs(
+    title = "Kids_count wise monthly transactions over time",
+    subtitle = "Average montly transations based on kids_count over period of time",
+    x = "Month of transaction",
+    y = "Average monthly sales in $"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+When we compare the above graph to the overall monthly sales, we can see that people with one child have lower sales.
+
+From this analysis, we need specific marketing for each income group as it looks like the current campaigns haven't worked in increasing their monthly sales and we also need to focus on age group 19-24 and households with 1 kid.
+
+#### Analysis 3
+
+For this analysis, we looked at how much each demographic groups contribute to the sales of top selling products. 
+
+##### Top product sales with respect to marital status
+
+```{r, message = FALSE}
+transactions %>%
+  inner_join(products) %>%
+  inner_join(demographics) %>%
+  group_by(marital_status, product_category) %>%
+  summarise(totalsales = sum(sales_value)) %>%
+  arrange(desc(totalsales)) %>%
+  head(30) %>%
+  ggplot(aes(product_category, totalsales)) +
+  facet_wrap( ~ marital_status, ncol = 1) +
+  geom_point(aes(colour = totalsales)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Total sales value of top products purchased based on Marital status",
+       x = "Top Products",
+       y = "Total sales in $") +
+  scale_y_continuous(label = scales::dollar)
+```
+
+Despite the fact that products like chicken, cold cereal and ice cream are common, there are no sales for them by unmarried people in the plot above. Sales are also very low for the married households.
+
+##### Top product sales with respect to age
+
+```{r, message = FALSE}
+transactions %>%
+  inner_join(products) %>%
+  inner_join(demographics) %>%
+  group_by(age, product_category) %>%
+  summarise(totalsales = sum(sales_value)) %>%
+  arrange(desc(totalsales)) %>%
+  head(30) %>%
+  ggplot(aes(product_category, totalsales)) +
+  facet_wrap( ~ age, ncol = 2) +
+  geom_point(aes(colour = product_category)) +
+  theme(legend.key.height =unit(0.4,"cm"))+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Total sales value of top products purchased based on Age Group",
+       x = "Top Products",
+       y = "Total sales in $") +
+  scale_y_continuous(label = scales::dollar) 
+```
+
+Although the top products listed in the figure are most commonly used among all households irrespective of their age, there are no sales for those items among the age groups 19-24 and above 55.
+
+##### Top product sales with respect to household size
+
+```{r, message = FALSE}
+transactions %>%
+  inner_join(products) %>%
+  inner_join(demographics) %>%
+  group_by(household_size, product_category) %>%
+  summarise(totalsales = sum(sales_value)) %>%
+  arrange(desc(totalsales)) %>%
+  head(30) %>%
+  ggplot(aes(product_category, totalsales)) +
+  facet_wrap( ~ household_size, ncol = 2) +
+  geom_point(aes(colour = product_category)) +
+  theme(legend.key.height =unit(0.4,"cm"))+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Total sales value of top products purchased based on Household Size",
+       x = "Top Products",
+       y = "Total sales in $") +
+  scale_y_continuous(breaks =, label = scales::dollar) 
+```
+
+Despite the fact that households with a larger number of people require more of these products, sales among them are low. 
+
+##### Top product sales with respect to income
+
+```{r, message = FALSE}
+transactions %>%
+  inner_join(products) %>%
+  inner_join(demographics) %>%
+  group_by(income, product_category) %>%
+  summarise(totalsales = sum(sales_value)) %>%
+  arrange(desc(totalsales)) %>%
+  head(30) %>%
+  ggplot(aes(product_category, totalsales)) +
+  facet_wrap( ~ income, ncol = 3) +
+  geom_point(aes(colour = totalsales)) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Total sales value of top products purchased based on Income",
+       x = "Top Products",
+       y = "Total sales in $") +
+  scale_y_continuous(label = scales::dollar) 
+```
+
+Except for the income ranges 35-49K and 50-74K, no other households are purchasing these basic essential products. 
+
+This might be due to many reasons, but we can improve the sales among these demographic groups by identifying their patterns of purchasing discounted products or if they are attending the campaigns, etc. 
+
+#### Most successful Campaign
+
+For this analysis, we have looked at how each campaign was successful among the households.
+
+##### campaign id and households
+```{r, message = FALSE}
+coupon_redemptions %>%
+  inner_join(transactions, by = 'household_id') %>%
+  filter(yday(transaction_timestamp) == yday(redemption_date)) %>%
+  inner_join(coupons, by = c("coupon_upc", "campaign_id", "product_id")) %>%
+  group_by(campaign_id) %>%
+  summarise(totalsales = sum(sales_value)) %>%
+  inner_join(households_per_campaign) %>%
+  mutate(income_per_household = totalsales * households_per_campaign_factor) %>%
+  arrange(desc(income_per_household)) %>% head(10)  %>%     #Top 10 campaign id
+  ggplot(aes(
+    x = "",
+    fill = campaign_id,
+    y = reorder(income_per_household, campaign_id)
+  )) +
+  geom_bar(stat = "identity",
+           width = 1,
+           color = 'black') +
+  coord_polar("y", start = 0) +
+  scale_fill_brewer(palette = 'Set3') +
+  geom_text(aes(
+    x = 1.7,
+    label = scales::percent(income_per_household / 10, accuracy = .1)
+  ), position = position_stack(vjust = .3)) +
+  theme_void() +
+  labs(
+    title = "Most successfull campaigns with respect to households",
+    subtitle = "Percentage wise successfull campaigns in year 2017",
+    x = NULL,
+    y = NULL
+  )
+
+```
+
+The above chart shows how successful each campaign was with respect to households. Campaign id 18 was the most successful compared to others. It would be ideal to invest more on these types of campaigns in order to increase overall sales. This information can be combined with the previous analyses of which households require additional attention. 
+
+### Summary
+
+##### Summarizing the problem statement:
+
+There are some demographic groups that doesn't follow the regular sales trend and need more marketing strategies that are specific to them.
+
+##### Summarizing the implementation:
+
+Although the analysis was conducted with all demographic groups in mind, only the most significant results were highlighted in this report. To look at how households are purchasing the products, we have done 4 types of analyses that focuses on the demographic data from completejourney. 
+
+##### Insights:
+
+Based on our analysis, we uncovered some insights about the sales made by some demographic groups with respect to different factors. It appears that some specific groups in each demographic data are not following the regular trend. This might be due to lack of awareness and can be addressed with conducting campaigns that focus on specific household group where there was a decrease in sales based on the analysis. 
+
+In addition, we examined the most successful campaigns across all households. We've also identified the household groups that don't buy the most common products. All of these insights can be combined, and additional campaigns similar to the successful campaigns can be conducted, but these can be more specific to the identified low-sale demographic groups. 
+
+##### Limitations:
+
+We've only looked at demographics sales here with respect to the larger trend. Since we did not have time specific data for promotions, we could not look at specific information on which promotions were most successful with which demographics. 
